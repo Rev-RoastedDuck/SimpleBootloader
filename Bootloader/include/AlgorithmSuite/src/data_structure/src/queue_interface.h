@@ -39,26 +39,4 @@ typedef struct __CIRCULAR_QUEUE_INTERFACE_RRD{
     circular_queue_get_next_index_rev_fn_t get_next_index_rev;
 }CIRCULAR_QUEUE_INTERFACE_RRD;
 
-typedef bool (*queue_is_full_fn_t)(void *self);
-typedef bool (*queue_is_empty_fn_t)(void *self);
-typedef size_t (*queue_get_lenth_fn_t)(void *self);
-typedef bool (*queue_enqueue_fn_t)(void *self, void *value);
-typedef void* (*queue_dequeue_fn_t)(void *self);
-
-typedef struct __QUEUE_INTERFACE_RRD
-{
-    queue_is_full_fn_t      is_full;
-    queue_is_empty_fn_t     is_empty;
-    queue_get_lenth_fn_t    get_lenth;
-
-    queue_enqueue_fn_t      enqueue;
-    queue_dequeue_fn_t      dequeue;
-} QUEUE_INTERFACE_RRD;
-
-bool queue_is_full_i(void *self);
-bool queue_is_empty_i(void *self);
-size_t queue_get_lenth_i(void *self);
-bool queue_enqueue_i(void *self, void *value);
-void*  queue_dequeue_i(void *self);
-
 #endif
