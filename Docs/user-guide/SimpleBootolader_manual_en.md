@@ -145,12 +145,14 @@ SimpleBootloader separates command and firmware handling by detecting the `dev_r
 ## Notes
 ### About NO_INIT
 #### **Keil**
+[**.sct example**](./ld_example/bl_example.sct)
+
 **1. Modify Keil Settings**
 
 <img src="./images/keil_sct_config.png" height="400">
 
 **2. Modify the `scatter` file (.sct)**
-- Before modification:
+- **Before Modification:**
   ```text
   LR_IROM1 0x08000000 0x00020000  {    ; load region size_region
     ER_IROM1 0x08000000 0x00020000  {  ; load address = execution address
@@ -164,7 +166,7 @@ SimpleBootloader separates command and firmware handling by detecting the `dev_r
     }
   }
   ```
-- After modification:
+- **After Modification:**
   ```text
   LR_IROM1 0x08000000 0x00020000  {    ; load region size_region
     ER_IROM1 0x08000000 0x00020000  {  ; load address = execution address
@@ -182,6 +184,64 @@ SimpleBootloader separates command and firmware handling by detecting the `dev_r
   }
   ```
 
+#### **GNUC**
+[**.ld example**](./ld_example/STM32G431RBTx_FLASH.ld)
+
+**1. Open the linker script file (`.ld`), and add a `.noinit` section after `.bss`.**
+
+- **Before Modification:**
+
+  ```text
+  ...
+  /* Uninitialized data section */
+  . = ALIGN(4);
+  .bss :
+  {
+    /* This is used by the startup in order to initialize the .bss section */
+    _sbss = .;         /* define a global symbol at bss start */
+    __bss_start__ = _sbss;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+
+    . = ALIGN(4);
+    _ebss = .;         /* define a global symbol at bss end */
+    __bss_end__ = _ebss;
+  } >RAM
+  ...
+  ```
+
+- **After Modification:**
+
+  ```text
+  ...
+  /* Uninitialized data section */
+  . = ALIGN(4);
+  .bss :
+  {
+    /* This is used by the startup in order to initialize the .bss section */
+    _sbss = .;         /* define a global symbol at bss start */
+    __bss_start__ = _sbss;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+
+    . = ALIGN(4);
+    _ebss = .;         /* define a global symbol at bss end */
+    __bss_end__ = _ebss;
+  } >RAM
+
+  /* Uninitialized non-zeroed data section (NO_INIT) */
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit)
+    *(.NO_INIT)
+    *(.noinit*)
+    . = ALIGN(4);
+  } >RAM
+  ...
+  ```
 ### Application Firmware Notes
 - **The start address of the application must match BL_APPLICATION_ADDRESS_X in the Bootloader configuration file**
 - **Firmware files downloaded to the device must be in bin format. Hex or elf formats are not supported.**
