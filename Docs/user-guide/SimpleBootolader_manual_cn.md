@@ -144,8 +144,10 @@ SimpleBootloader 通过检测由 `bootloader_platform_register_comm(bl_comm_rrd 
 
 ### NO_INIT 相关
 
-#### **Keil**
-**1. 修改keil配置**
+#### **Keil** 
+[**.sct示例**](./ld_example/bl_example.sct)
+
+**1. 修改Keil配置**
 
 <img src="./images/keil_sct_config.png" height="400">
 
@@ -182,6 +184,62 @@ SimpleBootloader 通过检测由 `bootloader_platform_register_comm(bl_comm_rrd 
       }
     }
     ```
+
+#### **GNUC**
+[**.ld示例**](./ld_example/STM32G431RBTx_FLASH.ld)
+
+**1. 打开链接文件（.ld），在 `.bss` 后添加 `.noinit`**
+- 修改前：
+  ```text
+  ...
+  /* Uninitialized data section */
+  . = ALIGN(4);
+  .bss :
+  {
+    /* This is used by the startup in order to initialize the .bss secion */
+    _sbss = .;         /* define a global symbol at bss start */
+    __bss_start__ = _sbss;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+
+    . = ALIGN(4);
+    _ebss = .;         /* define a global symbol at bss end */
+    __bss_end__ = _ebss;
+  } >RAM
+  ...
+  ```
+- 修改后：
+  ```text
+  ...
+  /* Uninitialized data section */
+  . = ALIGN(4);
+  .bss :
+  {
+    /* This is used by the startup in order to initialize the .bss secion */
+    _sbss = .;         /* define a global symbol at bss start */
+    __bss_start__ = _sbss;
+    *(.bss)
+    *(.bss*)
+    *(COMMON)
+
+    . = ALIGN(4);
+    _ebss = .;         /* define a global symbol at bss end */
+    __bss_end__ = _ebss;
+  } >RAM
+
+  /* Uninitialized non-zeroed data section (NO_INIT) */
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit)
+    *(.NO_INIT)
+    *(.noinit*)
+    . = ALIGN(4);
+  } >RAM
+  ...
+  ```
+
 ### 应用固件相关
 - **应用程序（App）的起始地址必须与 Bootloader 配置文件中的 `BL_APPLICATION_ADDRESS_X` 保持一致**
 - **下载到设备的固件文件必须为 bin 格式，不支持 hex 或 elf 格式**

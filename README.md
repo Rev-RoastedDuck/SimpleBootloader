@@ -25,6 +25,7 @@
 - 具备灵活的超时保护机制保障机制
 - 底层通信缓冲区采用高效 DMA 环形队列
 - 代码模块化，易于裁剪和扩展
+- 支持 `Keil MDK(ARMCC)`、`GNUC` 和 `IAR(ICCARM)`
 
 ## 目录结构
 - `Bootloader/`
