@@ -37,7 +37,7 @@ typedef size_t (*bl_platform_get_systick_fn_t)(void);
 /** \addtogroup section no_init
  ** \{ */
 #if defined(__GNUC__) && !defined(__linux__)
-  #define SECTION_NO_INIT     __attribute__((section("NO_INIT"), zero_init))
+  #define SECTION_NO_INIT     __attribute__((section("NO_INIT")))
 #elif defined(__GNUC__) && defined(__linux__)
   #define SECTION_NO_INIT
 #elif defined(__ICCARM__)
@@ -45,7 +45,7 @@ typedef size_t (*bl_platform_get_systick_fn_t)(void);
 #elif defined(__CC_ARM)
   #define SECTION_NO_INIT     __attribute__((section("NO_INIT"), zero_init))
 #else
-  #define SECTION_NO_INIT     // 默认空
+  #define SECTION_NO_INIT 
 #endif
 /** \} */
 

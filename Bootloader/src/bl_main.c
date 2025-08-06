@@ -436,15 +436,35 @@ bl_operate_timeoutcode:
 /******************************************************************************/
 /*------------------------------bl_debug_comm_dev-----------------------------*/
 /******************************************************************************/
-int fputc(int ch, FILE *f){
-    if(g_bl_debug_comm_dev != NULL){
-        if(!(bl_status != BL_STATUS_WAIT_FOR_CMD
-            && g_bl_debug_comm_dev == g_modem_comm_dev)){
-            g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev,(uint8_t *)(&ch),1);
+#if defined(__GNUC__)
+    int _write(int file, char *ptr, int len) {
+        if(g_bl_debug_comm_dev != NULL){
+            if(!(bl_status != BL_STATUS_WAIT_FOR_CMD
+                && g_bl_debug_comm_dev == g_modem_comm_dev)){
+                g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev,(uint8_t *)ptr,len);
+            }
         }
+        return len;
     }
-    return ch;
-}
+#elif defined(__ICCARM__)
+    size_t __write(int handle, const unsigned char *buf, size_t size) {
+        if (g_bl_debug_comm_dev != NULL) {
+            g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev, (uint8_t *)buf, size);
+            return size;
+        }
+        return 0;
+    }
+#elif defined(__CC_ARM)
+    int fputc(int ch, FILE *f){
+        if(g_bl_debug_comm_dev != NULL){
+            if(!(bl_status != BL_STATUS_WAIT_FOR_CMD
+                && g_bl_debug_comm_dev == g_modem_comm_dev)){
+                g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev,(uint8_t *)(&ch),1);
+            }
+        }
+        return ch;
+    }
+#endif
 
 /******************************************************************************/
 /*-----------------------------------bl_main----------------------------------*/
