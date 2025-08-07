@@ -11,6 +11,16 @@
 
 ## Configuration Files
 
+### `Bootloader/include/DebugSuite/debug.h`
+
+- **Related Macros**
+
+  - `DEBUG_PRINT_ENABLE`  
+    Controls the enable/disable switch for debug printing; disabling it can save about 2KB of RAM.
+
+  - `DEBUG_PRINT_SHOW_COLOR`  
+    Controls whether the debug output text is displayed with colors.
+
 ### `bl_config.h`
 
 - **Important Parameters**

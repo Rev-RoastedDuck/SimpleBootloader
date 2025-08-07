@@ -11,6 +11,14 @@
 
 ## 配置文件
 
+### `Bootloader/include/DebugSuite/debug.h`
+- **相关参数**
+  - `DEBUG_PRINT_ENABLE`  
+    用于控制调试打印功能的开关，关闭后可节省2K的RAM空间
+
+  - `DEBUG_PRINT_SHOW_COLOR`
+    用于控制调试输出文本是否带有颜色显示
+
 ### `bl_config.h`
 
 - **重要参数**
