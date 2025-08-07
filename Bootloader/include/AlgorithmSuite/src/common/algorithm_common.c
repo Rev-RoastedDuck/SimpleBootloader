@@ -18,9 +18,17 @@
  */
 inline void* aligned_malloc(size_t size, size_t alignment)
 {
-    void *ptr = malloc(size + alignment - 1);
-    if (ptr == NULL) {
-        return NULL;
+    uintptr_t raw = (uintptr_t)malloc(size + alignment - 1 + sizeof(void*));
+    if (raw == 0) return NULL;
+    uintptr_t aligned = (raw + sizeof(void*) + alignment - 1) & ~(alignment - 1);
+    ((void**)aligned)[-1] = (void*)raw;
+
+    return (void*)aligned;
+}
+
+void aligned_free(void* aligned_ptr)
+{
+    if (aligned_ptr) {
+        free(((void**)aligned_ptr)[-1]);
     }
-    return (void*)(((uintptr_t)ptr + alignment - 1) & ~(alignment - 1));
 }

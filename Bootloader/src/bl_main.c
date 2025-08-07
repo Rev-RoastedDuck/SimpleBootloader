@@ -16,8 +16,9 @@
 
 /** \addtogroup crc32
  ** \{ */
-static uint32_t g_bl_firware_crc32_table[256];
+static uint32_t *g_bl_firware_crc32_table;
 void bl_firware_crc32_table_init(void) {
+    g_bl_firware_crc32_table = (uint32_t*)malloc(sizeof(uint32_t)*256);
     uint32_t crc;
     for (uint32_t i = 0; i < 256; i++) {
         crc = i;
@@ -29,6 +30,10 @@ void bl_firware_crc32_table_init(void) {
         }
         g_bl_firware_crc32_table[i] = crc;
     }
+}
+
+void bl_firware_crc32_table_deinit(void) {
+    free(g_bl_firware_crc32_table);
 }
 
 uint32_t bl_firware_crc32_compute(const uint8_t *data, uint32_t length) {
@@ -165,7 +170,6 @@ static uint32_t bl_apps_manager_get_app_addr(void){
 }
 
 static void bl_apps_manager_load_info(void){
-    bl_firware_crc32_table_init();
     g_bl_flash->interface->read(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
 
     if(g_bl_apps_manager_rrd.magic != BL_FIRWARE_INFO_MAGIC_RRD){
@@ -190,11 +194,10 @@ static void bl_apps_manager_load_info(void){
 
             DEBUG_PRINT_INFO(1, "+--------+--------+------------+------------+--------+------------+");
 
-            DEBUG_PRINT_INFO(1, "[bootloader] Download Count: %u, Upgrade Flag: %d, Download Index: %d",
-
-            g_bl_apps_manager_rrd.download_app_count,
-            g_bl_apps_manager_rrd.upgrade_flag,
-            g_bl_apps_manager_rrd.download_app_index);
+            DEBUG_PRINT_INFO(1, "[bootloader] Download Count: %u, Upgrade Flag: %d, APP Index: %d",
+                                                                g_bl_apps_manager_rrd.download_app_count,
+                                                                g_bl_apps_manager_rrd.upgrade_flag,
+                                                                bl_apps_manager_get_app_index());
 
         for(uint8_t index = 0; index < BL_APPLICATION_NUMBER; ++index){
             if(g_bl_apps_manager_rrd.apps[index].valid_firware){
@@ -479,7 +482,7 @@ void bootloader_pre_main(void) {
 
 void bootloader_main(void){
     bl_platform_device_init();
-
+    bl_firware_crc32_table_init();
     DEBUG_PRINT_INFO(1, "\n[bootloader] Timeout Config:");
     DEBUG_PRINT_INFO(1, "+---------------+------------+");
     DEBUG_PRINT_INFO(1, "| Item          | Timeout(ms)|");
@@ -502,6 +505,8 @@ void bootloader_main(void){
     bootloader_upgrade_app();
     
     bl_platform_device_deinit();
+    bl_firware_crc32_table_deinit();
+
     bootloader_jump_to_app_pre();
 
     while (1){

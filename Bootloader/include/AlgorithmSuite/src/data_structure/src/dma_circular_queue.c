@@ -125,8 +125,11 @@ static void circular_queue_batch_enqueue(DMA_CIRCULAR_QUEUE_RRD *self, void *buf
 /******************************************************************************/
 static void circular_queue_del(void **self){
     if (self != NULL && *self != NULL) {
-        free(((DMA_CIRCULAR_QUEUE_RRD*)*self)->data);
-        free(*self);
+        DMA_CIRCULAR_QUEUE_RRD *q = (DMA_CIRCULAR_QUEUE_RRD *)(*self);
+        if (q->data){
+            aligned_free(q->data);
+        }
+        q->data = NULL;
         *self = NULL;
     }
 }
