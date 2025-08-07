@@ -34,6 +34,7 @@
 #define container_of(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 #define clamp(value,min,max)  ((value) < (min)? (min) : ((value) > (max)? (max) : (value)))
 
+void aligned_free(void* aligned_ptr);
 void* aligned_malloc(size_t size, size_t alignment);
 
 #endif
