@@ -50,6 +50,7 @@ uint32_t bl_firware_crc32_compute(const uint8_t *data, uint32_t length) {
 
 /** \addtogroup app_info
  ** \{ */
+// aligned(4)
 typedef struct __BL_APP_INFO_RRD{
     uint8_t valid_firware;
     uint32_t magic;
@@ -59,6 +60,7 @@ typedef struct __BL_APP_INFO_RRD{
     uint32_t app_version;
 }BL_APP_INFO_RRD, bl_app_info_rrd;
 
+// aligned(4)
 typedef struct __BL_APPS_MANAGER_RRD{
     bl_app_info_rrd apps[2];
 
@@ -68,114 +70,117 @@ typedef struct __BL_APPS_MANAGER_RRD{
     uint8_t download_app_index;
 }BL_APPS_MANAGER_RRD, bl_apps_manager_rrd;
 
-static bl_apps_manager_rrd g_bl_apps_manager_rrd = {0};
-static void bl_apps_manager_init(void){
-    g_bl_apps_manager_rrd.upgrade_flag = 0;
-    g_bl_apps_manager_rrd.download_app_index = 0;
-    g_bl_apps_manager_rrd.magic = BL_FIRWARE_INFO_MAGIC_RRD;
-
-    g_bl_apps_manager_rrd.apps[0].app_size = 0;
-    g_bl_apps_manager_rrd.apps[0].app_crc32 = 0;
-    g_bl_apps_manager_rrd.apps[0].app_version = 0;
-    g_bl_apps_manager_rrd.apps[0].valid_firware = 0;
-    g_bl_apps_manager_rrd.apps[0].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    g_bl_apps_manager_rrd.apps[0].app_addr = BL_APPLICATION_ADDRESS_A;
-
-    g_bl_apps_manager_rrd.apps[1].app_size = 0;
-    g_bl_apps_manager_rrd.apps[1].app_crc32 = 0;
-    g_bl_apps_manager_rrd.apps[1].app_version = 0;
-    g_bl_apps_manager_rrd.apps[1].valid_firware = 0;
-    g_bl_apps_manager_rrd.apps[1].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    g_bl_apps_manager_rrd.apps[1].app_addr = BL_APPLICATION_ADDRESS_B;
+static bl_apps_manager_rrd *g_bl_apps_manager_rrd;
+static inline void bl_apps_manager_new(void){
+    g_bl_apps_manager_rrd = (bl_apps_manager_rrd *)malloc(sizeof(bl_apps_manager_rrd));
 }
 
-static void bl_apps_manager_reset(void){
-    bl_apps_manager_init();
+static inline void bl_apps_manager_init(bl_apps_manager_rrd *self){
+    self->upgrade_flag = 0;
+    self->download_app_index = 0;
+    self->magic = BL_FIRWARE_INFO_MAGIC_RRD;
+
+    self->apps[0].app_size = 0;
+    self->apps[0].app_crc32 = 0;
+    self->apps[0].app_version = 0;
+    self->apps[0].valid_firware = 0;
+    self->apps[0].magic = BL_FIRWARE_INFO_MAGIC_RRD;
+    self->apps[0].app_addr = BL_APPLICATION_ADDRESS_A;
+
+    self->apps[1].app_size = 0;
+    self->apps[1].app_crc32 = 0;
+    self->apps[1].app_version = 0;
+    self->apps[1].valid_firware = 0;
+    self->apps[1].magic = BL_FIRWARE_INFO_MAGIC_RRD;
+    self->apps[1].app_addr = BL_APPLICATION_ADDRESS_B;
+}
+
+static void bl_apps_manager_reset(bl_apps_manager_rrd *self){
+    bl_apps_manager_init(self);
     g_bl_flash->interface->write_pre(g_bl_flash, BL_FRIWARE_INFO_ADDRESS);
-    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
+    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
 }
 
-static inline bool bl_apps_manager_have_firware(void){
-    return g_bl_apps_manager_rrd.apps[0].valid_firware || g_bl_apps_manager_rrd.apps[1].valid_firware;
+static inline bool bl_apps_manager_have_firware(bl_apps_manager_rrd *self){
+    return self->apps[0].valid_firware || self->apps[1].valid_firware;
 }
 
-static void bl_apps_manager_upgrade_success(uint32_t finished_addr){
-    bl_app_info_rrd *app = &g_bl_apps_manager_rrd.apps[g_bl_apps_manager_rrd.download_app_index];
+static inline void bl_apps_manager_upgrade_success(bl_apps_manager_rrd *self, uint32_t finished_addr){
+    bl_app_info_rrd *app = &self->apps[self->download_app_index];
 
     app->valid_firware = true;
     app->app_size = finished_addr - app->app_addr;
     app->app_crc32 = bl_firware_crc32_compute((const uint8_t *)(uintptr_t)app->app_addr, app->app_size);
 
-    g_bl_apps_manager_rrd.upgrade_flag = 0;
-    g_bl_apps_manager_rrd.download_app_count ++;
-    g_bl_apps_manager_rrd.download_app_index = (g_bl_apps_manager_rrd.download_app_index + 1) % BL_APPLICATION_NUMBER;
+    self->upgrade_flag = 0;
+    self->download_app_count ++;
+    self->download_app_index = (self->download_app_index + 1) % BL_APPLICATION_NUMBER;
 
     g_bl_flash->interface->write_pre(g_bl_flash, BL_FRIWARE_INFO_ADDRESS);
-    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
+    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
 
     DEBUG_PRINT_SUCCESS(1, "[bootloader] app-%d-info: addr-0x%08X "
                                 "crc32-0x%08X size-%d version-%u ",
-                                g_bl_apps_manager_rrd.download_app_index,
+                                self->download_app_index,
                                 app->app_addr, app->app_crc32,
                                 app->app_size, app->app_version);
 }
 
-static void bl_apps_manager_clear_app_info(uint8_t app_index){
+static inline void bl_apps_manager_clear_app_info(bl_apps_manager_rrd *self, uint8_t app_index){
     DEBUG_ASSERT(app_index < BL_APPLICATION_NUMBER);
-    g_bl_apps_manager_rrd.apps[app_index].app_size = 0;
-    g_bl_apps_manager_rrd.apps[app_index].app_crc32 = 0;
-    g_bl_apps_manager_rrd.apps[app_index].app_version = 0;
-    g_bl_apps_manager_rrd.apps[app_index].valid_firware = 0;
-    g_bl_apps_manager_rrd.apps[app_index].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    g_bl_apps_manager_rrd.apps[app_index].app_addr = app_index == 0? BL_APPLICATION_ADDRESS_A : BL_APPLICATION_ADDRESS_B;
+    self->apps[app_index].app_size = 0;
+    self->apps[app_index].app_crc32 = 0;
+    self->apps[app_index].app_version = 0;
+    self->apps[app_index].valid_firware = 0;
+    self->apps[app_index].magic = BL_FIRWARE_INFO_MAGIC_RRD;
+    self->apps[app_index].app_addr = app_index == 0? BL_APPLICATION_ADDRESS_A : BL_APPLICATION_ADDRESS_B;
     g_bl_flash->interface->write_pre(g_bl_flash, BL_FRIWARE_INFO_ADDRESS);
-    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
+    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
 }
 
-static int8_t bl_apps_manager_switch_app(void){
-    if(!g_bl_apps_manager_rrd.apps[g_bl_apps_manager_rrd.download_app_index].valid_firware){
+static inline int8_t bl_apps_manager_switch_app(bl_apps_manager_rrd *self){
+    if(!self->apps[self->download_app_index].valid_firware){
         return -1;
     }
-    g_bl_apps_manager_rrd.download_app_index = (g_bl_apps_manager_rrd.download_app_index + 1) % BL_APPLICATION_NUMBER;
+    self->download_app_index = (self->download_app_index + 1) % BL_APPLICATION_NUMBER;
     g_bl_flash->interface->write_pre(g_bl_flash, BL_FRIWARE_INFO_ADDRESS);
-    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
+    g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
     return 0;
 }
 
-static bool bl_apps_manager_check_app_info(uint8_t app_index){
+static inline bool bl_apps_manager_check_app_info(bl_apps_manager_rrd *self, uint8_t app_index){
     DEBUG_ASSERT(app_index < BL_APPLICATION_NUMBER);
-    bl_app_info_rrd *app = &g_bl_apps_manager_rrd.apps[app_index];
+    bl_app_info_rrd *app = &self->apps[app_index];
     return app->magic == BL_FIRWARE_INFO_MAGIC_RRD 
             && app->app_crc32 == bl_firware_crc32_compute((const uint8_t *)(uintptr_t)app->app_addr, app->app_size);
 }
 
-static inline uint32_t bl_apps_manager_get_download_addr(void){
-    return g_bl_apps_manager_rrd.apps[g_bl_apps_manager_rrd.download_app_index].app_addr;
+static inline uint32_t bl_apps_manager_get_download_addr(bl_apps_manager_rrd *self){
+    return self->apps[self->download_app_index].app_addr;
 }
 
-static int8_t bl_apps_manager_get_app_index(void){
-    uint8_t index = (BL_APPLICATION_NUMBER + g_bl_apps_manager_rrd.download_app_index - 1) % BL_APPLICATION_NUMBER;
-    if(!g_bl_apps_manager_rrd.apps[index].valid_firware){
+static int8_t bl_apps_manager_get_app_index(bl_apps_manager_rrd *self){
+    uint8_t index = (BL_APPLICATION_NUMBER + self->download_app_index - 1) % BL_APPLICATION_NUMBER;
+    if(!self->apps[index].valid_firware){
         return -1;
     }
     return index;
 }
 
-static uint32_t bl_apps_manager_get_app_addr(void){
-    uint8_t index = (BL_APPLICATION_NUMBER + g_bl_apps_manager_rrd.download_app_index - 1) % BL_APPLICATION_NUMBER;
-    if(!g_bl_apps_manager_rrd.apps[index].valid_firware){
+static uint32_t bl_apps_manager_get_app_addr(bl_apps_manager_rrd *self){
+    uint8_t index = (BL_APPLICATION_NUMBER + self->download_app_index - 1) % BL_APPLICATION_NUMBER;
+    if(!self->apps[index].valid_firware){
         return 0;
     }
-    return g_bl_apps_manager_rrd.apps[index].app_addr;
+    return self->apps[index].app_addr;
 }
 
-static void bl_apps_manager_load_info(void){
-    g_bl_flash->interface->read(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, (uint8_t*)(&g_bl_apps_manager_rrd), sizeof(g_bl_apps_manager_rrd));
+static void bl_apps_manager_load_info(bl_apps_manager_rrd *self){
+    g_bl_flash->interface->read(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
 
-    if(g_bl_apps_manager_rrd.magic != BL_FIRWARE_INFO_MAGIC_RRD){
-        bl_apps_manager_reset();
-        uint8_t *p_magic = (uint8_t *)&g_bl_apps_manager_rrd.magic;
-        DEBUG_PRINT_ERROR(1,"[bootloader] bl_apps_manager magic checked failed. magic-0x%02X%02X%02X%02X", p_magic[3], p_magic[2], p_magic[1], p_magic[0]);
+    if(self->magic != BL_FIRWARE_INFO_MAGIC_RRD){
+        bl_apps_manager_reset(self);
+        DEBUG_PRINT_ERROR(1,"[bootloader] bl_apps_manager magic checked failed. magic-0x%08X", self->magic);
     }else{
             DEBUG_PRINT_INFO(1, "\n[bootloader] App Manager Info:");
             DEBUG_PRINT_INFO(1, "+--------+--------+------------+------------+--------+------------+");
@@ -185,26 +190,26 @@ static void bl_apps_manager_load_info(void){
             for (uint8_t index = 0; index < BL_APPLICATION_NUMBER; ++index) {
                 DEBUG_PRINT_INFO(1, "| %-6d | %-6d | 0x%08X | 0x%08X | %-6d | %-10u |",
                             index,
-                            g_bl_apps_manager_rrd.apps[index].valid_firware,
-                            g_bl_apps_manager_rrd.apps[index].app_addr,
-                            g_bl_apps_manager_rrd.apps[index].app_crc32,
-                            g_bl_apps_manager_rrd.apps[index].app_size,
-                            g_bl_apps_manager_rrd.apps[index].app_version);
+                            self->apps[index].valid_firware,
+                            self->apps[index].app_addr,
+                            self->apps[index].app_crc32,
+                            self->apps[index].app_size,
+                            self->apps[index].app_version);
             }
 
             DEBUG_PRINT_INFO(1, "+--------+--------+------------+------------+--------+------------+");
 
             DEBUG_PRINT_INFO(1, "[bootloader] Download Count: %u, Upgrade Flag: %d, APP Index: %d",
-                                                                g_bl_apps_manager_rrd.download_app_count,
-                                                                g_bl_apps_manager_rrd.upgrade_flag,
-                                                                bl_apps_manager_get_app_index());
+                                                                self->download_app_count,
+                                                                self->upgrade_flag,
+                                                                bl_apps_manager_get_app_index(self));
 
         for(uint8_t index = 0; index < BL_APPLICATION_NUMBER; ++index){
-            if(g_bl_apps_manager_rrd.apps[index].valid_firware){
-                bool ret = bl_apps_manager_check_app_info(index);
+            if(self->apps[index].valid_firware){
+                bool ret = bl_apps_manager_check_app_info(self, index);
                 if(!ret){
                     DEBUG_PRINT_ERROR(1,"[bootloader] app-%d magic/crc32 checked failed. ",index);
-                    bl_apps_manager_clear_app_info(index);
+                    bl_apps_manager_clear_app_info(self, index);
                 }
             }
         }
@@ -226,23 +231,16 @@ typedef struct __BL_TIMEOUT_MANAGER{
     uint32_t timestamp[BL_TIMEOUT_MAX];
 }BL_TIMEOUT_MANAGER, bl_timeout_manager;
 
-static bl_timeout_manager g_bl_timeout_manager = {0};
-
-static void bl_timeout_update(BL_TIMEOUT_TYPE type) {
+static void bl_timeout_update(bl_timeout_manager *self, BL_TIMEOUT_TYPE type) {
     if (type < BL_TIMEOUT_MAX)
-        g_bl_timeout_manager.timestamp[type] = bl_platform_get_systick();
+        self->timestamp[type] = bl_platform_get_systick();
 }
 
-static bool bl_timeout_expired(BL_TIMEOUT_TYPE type, uint32_t timeout_ms) {
+static bool bl_timeout_expired(bl_timeout_manager *self, BL_TIMEOUT_TYPE type, uint32_t timeout_ms) {
     if (type >= BL_TIMEOUT_MAX)
         return true;
-    return (bl_platform_get_systick() - g_bl_timeout_manager.timestamp[type]) > timeout_ms;
+    return (bl_platform_get_systick() - self->timestamp[type]) > timeout_ms;
 }
-#define bl_timeout_update_operate()     bl_timeout_update(BL_TIMEOUT_OPERATE)
-#define bl_timeout_update_download()    bl_timeout_update(BL_TIMEOUT_DOWNLOAD)
-
-#define bl_operate_timeout()    bl_timeout_expired(BL_TIMEOUT_OPERATE, BL_TIMEOUT_NO_OPERATE_RRD)
-#define bl_download_timeout()   bl_timeout_expired(BL_TIMEOUT_DOWNLOAD, BL_TIMEOUT_DOWNLOAD_RRD)
 
 /******************************************************************************/
 /*----------------------------------bl_jump-----------------------------------*/
@@ -250,8 +248,8 @@ static bool bl_timeout_expired(BL_TIMEOUT_TYPE type, uint32_t timeout_ms) {
 SECTION_NO_INIT volatile uint32_t bl_app_jump_flag;
 SECTION_NO_INIT volatile uint32_t bl_app_jump_address;
 
-static void bootloader_jump_to_app_pre(void){
-    bl_app_jump_address = bl_apps_manager_get_app_addr();
+static inline void bootloader_jump_to_app_pre(void){
+    bl_app_jump_address = bl_apps_manager_get_app_addr(g_bl_apps_manager_rrd);
     if(bl_app_jump_address == 0){
         DEBUG_PRINT_ERROR(1,"[bootloader] failed to get app addr. ");
         return;
@@ -260,7 +258,7 @@ static void bootloader_jump_to_app_pre(void){
     bl_platform_system_reset();
 }
 
-static void bootloader_jump_to_app(void){
+static inline void bootloader_jump_to_app(void){
    bl_platform_disable_irq();
    #ifdef SCB
        SCB->VTOR = bl_app_jump_address;
@@ -297,9 +295,7 @@ typedef enum __BL_STATUS{
     BL_STATUS_WAIT_FOR_CMD = 0,
     BL_STATUS_UPGRADE,
 }BL_STATUS;
-
-static BL_STATUS bl_status = BL_STATUS_WAIT_FOR_CMD;
-
+BL_STATUS bl_status = BL_STATUS_WAIT_FOR_CMD;
 static BL_CMD bootloader_upgrade_wait_for_cmd(bl_comm_rrd **g_modem_comm_dev){
     size_t length = 0;
     bl_comm_rrd *temp;
@@ -335,28 +331,43 @@ static BL_CMD bootloader_upgrade_wait_for_cmd(bl_comm_rrd **g_modem_comm_dev){
 }
 
 static void bootloader_upgrade_app(void){
+    /** upgrade_buff
+     ** \{ */
     DMA_CIRCULAR_QUEUE_RRD upgrade_buff;
     DMA_CIRCULAR_QUEUE_RRD *upgrade_buff_ptr = &upgrade_buff;
-    dma_circular_queue_init(upgrade_buff_ptr,512,sizeof(uint8_t),512);
+    dma_circular_queue_init(upgrade_buff_ptr,256,sizeof(uint8_t),256);
+    /** \} */
 
+    /** modem
+     ** \{ */
     XYMODEM_RECEIVER_RRD xmodem;
     xmodem.config.max_retry_count = 10;
     xymodem_receiver_init(&xmodem, modem_xmodem, modem_128, modem_crc16, modem_send_data, bl_platform_get_systick, modem_save_data);
+    /** \} */
 
+    /** timeout_manager
+     ** \{ */
+    bl_timeout_manager bl_timeout_manager = {0};
+    #define bl_timeout_update_operate()     bl_timeout_update(&bl_timeout_manager, BL_TIMEOUT_OPERATE)
+    #define bl_timeout_update_download()    bl_timeout_update(&bl_timeout_manager, BL_TIMEOUT_DOWNLOAD)
+    #define bl_operate_timeout()            bl_timeout_expired(&bl_timeout_manager, BL_TIMEOUT_OPERATE, BL_TIMEOUT_NO_OPERATE_RRD)
+    #define bl_download_timeout()           bl_timeout_expired(&bl_timeout_manager, BL_TIMEOUT_DOWNLOAD, BL_TIMEOUT_DOWNLOAD_RRD)
+    
     bl_timeout_update_operate();
     bl_timeout_update_download();
+    /** \} */
 
     while(1){
         if(BL_STATUS_WAIT_FOR_CMD == bl_status){
             BL_CMD cmd = bootloader_upgrade_wait_for_cmd(&g_modem_comm_dev);
             cmd != BL_CMD_NONE && (bl_timeout_update_operate(),true);
-            if(bl_apps_manager_have_firware() && bl_operate_timeout()){
+            if(bl_apps_manager_have_firware(g_bl_apps_manager_rrd) && bl_operate_timeout()){
                 goto bl_operate_timeoutcode;
             }
             switch (cmd){
                 case BL_CMD_UPGRADE:
                     DEBUG_PRINT_INFO(1,"[bootloader] waitting for first pack of new firware. ");
-                    g_bl_download_addr = bl_apps_manager_get_download_addr();
+                    g_bl_download_addr = bl_apps_manager_get_download_addr(g_bl_apps_manager_rrd);
                     g_modem_comm_dev->interface->switch_buff(g_modem_comm_dev,upgrade_buff_ptr);
                     g_modem_comm_dev->curr_data_buff->interface->clear(g_modem_comm_dev->curr_data_buff);
                     bl_status = BL_STATUS_UPGRADE;
@@ -379,15 +390,15 @@ static void bootloader_upgrade_app(void){
                     }
                     break;
                 case BL_CMD_SWITCH_APP:
-                    if(bl_apps_manager_switch_app() >= 0){
-                        DEBUG_PRINT_SUCCESS(1,"[bootloader] success to switch app-%d-addr-%X.",bl_apps_manager_get_app_index(),
-                                                                                           bl_apps_manager_get_app_addr());
+                    if(bl_apps_manager_switch_app(g_bl_apps_manager_rrd) >= 0){
+                        DEBUG_PRINT_SUCCESS(1,"[bootloader] success to switch app-%d-addr-%X.",bl_apps_manager_get_app_index(g_bl_apps_manager_rrd),
+                                                                                           bl_apps_manager_get_app_addr(g_bl_apps_manager_rrd));
                         goto bl_switch_download_app;
                     }
                     DEBUG_PRINT_FATAL(1,"[bootloader] failed to switch app.");
                     break;
                 case BL_CMD_RESET_APP_MANAGER:
-                    bl_apps_manager_reset();
+                    bl_apps_manager_reset(g_bl_apps_manager_rrd);
                     DEBUG_PRINT_INFO(1,"[bootloader] reset apps manager info.");
                     break;
                 default:
@@ -420,7 +431,7 @@ static void bootloader_upgrade_app(void){
                 } else if (result == MODEM_CODE_PACK_FINISHED){
                     DEBUG_PRINT_SUCCESS(1,"[bootloader] [upgrade] unpack finished.");
                     bl_timeout_update_download();
-                    bl_apps_manager_upgrade_success(g_bl_download_addr);
+                    bl_apps_manager_upgrade_success(g_bl_apps_manager_rrd, g_bl_download_addr);
                     upgrade_buff_ptr->interface->clear(upgrade_buff_ptr);
                     break;
                 }
@@ -433,7 +444,7 @@ bl_switch_download_app:
 bl_download_timeout_code:
 bl_operate_timeoutcode:
     upgrade_buff_ptr->del((void **)&upgrade_buff_ptr);
-    DEBUG_PRINT_INFO(1, "[bootloader] launch app%d...",bl_apps_manager_get_app_index());
+    DEBUG_PRINT_INFO(1, "[bootloader] launch app%d...",bl_apps_manager_get_app_index(g_bl_apps_manager_rrd));
 }
 
 /******************************************************************************/
@@ -500,7 +511,8 @@ void bootloader_main(void){
     DEBUG_PRINT_INFO(1, "| reset_bl      | 0x%08X |", BL_RESET_APP_MANAGER_MAGIC_RRD);
     DEBUG_PRINT_INFO(1, "+---------------+------------+");
 
-    bl_apps_manager_load_info();
+    bl_apps_manager_new();
+    bl_apps_manager_load_info(g_bl_apps_manager_rrd);
 
     bootloader_upgrade_app();
     
