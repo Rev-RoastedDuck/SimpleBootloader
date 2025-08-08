@@ -25,14 +25,11 @@
   - `BL_FLASH_BASE_ADDRESS`  
     Bootloader 在 Flash 中的起始地址。烧录 Bootloader 时需与此地址保持一致
 
-  - `BL_APPLICATION_ADDRESS_A` / `BL_APPLICATION_ADDRESS_B`  
-    主/备应用区的起始地址。支持双应用区（A/B 区）管理，升级后可回退。每个应用区需独立分区，避免与 Bootloader 区重叠
+  - `BL_APPLICATION_ADDRESS_LIST`  
+    应用区的起始地址列表。支持多应用区管理，升级后可回退。每个应用区需独立分区，避免与 Bootloader 区重叠
 
   - `BL_FRIWARE_INFO_ADDRESS`  
     固件信息存储区地址。用于保存每个应用区的固件元数据（如版本、大小、校验值等）
-
-  - `BL_APPLICATION_NUMBER`  
-    支持的应用区数量
 
   - `BL_USE_CONSTRUCTOR_ATTRIBUTE_RRD`  
     是否启用构造函数属性（`__attribute__((constructor))`），用于自动执行 Bootloader 预处理流程

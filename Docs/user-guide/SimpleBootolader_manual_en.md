@@ -27,14 +27,11 @@
   - `BL_FLASH_BASE_ADDRESS`  
     Start address of the Bootloader in Flash. Must match this address when flashing the Bootloader.
 
-  - `BL_APPLICATION_ADDRESS_A` / `BL_APPLICATION_ADDRESS_B`  
-    Start addresses of the primary/backup application areas. Supports dual application area (A/B) management, allowing rollback after an upgrade. Each area should be independently partitioned and must not overlap with the Bootloader region.
-
+  - `BL_APPLICATION_ADDRESS_LIST`
+    List of start addresses for application regions. Supports multi-application management and allows rollback after an upgrade. Each application region must be partitioned independently to avoid overlapping with the Bootloader region.
+  
   - `BL_FRIWARE_INFO_ADDRESS`  
     Address of the firmware information storage area. Used to store metadata of each application area (e.g., version, size, checksum, etc.)
-
-  - `BL_APPLICATION_NUMBER`  
-    Number of supported application areas.
 
   - `BL_USE_CONSTRUCTOR_ATTRIBUTE_RRD`  
     Whether to enable the constructor attribute (`__attribute__((constructor))`), used to automatically execute the Bootloader preprocessing flow.
