@@ -48,6 +48,13 @@ uint32_t bl_firware_crc32_compute(const uint8_t *data, uint32_t length) {
 }
 /** \} */
 
+/** \addtogroup app_addr_list
+ ** \{ */
+static const uint32_t g_app_addr_list[] = BL_APPLICATION_ADDRESS_LIST;
+#define BL_APPLICATION_NUMBER  (sizeof((uint32_t[])BL_APPLICATION_ADDRESS_LIST) / sizeof(uint32_t))
+/** \} */
+
+
 /** \addtogroup app_info
  ** \{ */
 // aligned(4)
@@ -62,13 +69,14 @@ typedef struct __BL_APP_INFO_RRD{
 
 // aligned(4)
 typedef struct __BL_APPS_MANAGER_RRD{
-    bl_app_info_rrd apps[2];
+    bl_app_info_rrd apps[BL_APPLICATION_NUMBER];
 
     uint32_t magic;
     uint8_t upgrade_flag;
     uint8_t download_app_count;
     uint8_t download_app_index;
 }BL_APPS_MANAGER_RRD, bl_apps_manager_rrd;
+
 
 static bl_apps_manager_rrd *g_bl_apps_manager_rrd;
 static inline void bl_apps_manager_new(void){
@@ -78,21 +86,17 @@ static inline void bl_apps_manager_new(void){
 static inline void bl_apps_manager_init(bl_apps_manager_rrd *self){
     self->upgrade_flag = 0;
     self->download_app_index = 0;
+    self->download_app_count = 0;
     self->magic = BL_FIRWARE_INFO_MAGIC_RRD;
 
-    self->apps[0].app_size = 0;
-    self->apps[0].app_crc32 = 0;
-    self->apps[0].app_version = 0;
-    self->apps[0].valid_firware = 0;
-    self->apps[0].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    self->apps[0].app_addr = BL_APPLICATION_ADDRESS_A;
-
-    self->apps[1].app_size = 0;
-    self->apps[1].app_crc32 = 0;
-    self->apps[1].app_version = 0;
-    self->apps[1].valid_firware = 0;
-    self->apps[1].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    self->apps[1].app_addr = BL_APPLICATION_ADDRESS_B;
+    for(uint8_t index = 0; index < BL_APPLICATION_NUMBER; ++index){
+        self->apps[index].app_size = 0;
+        self->apps[index].app_crc32 = 0;
+        self->apps[index].app_version = 0;
+        self->apps[index].valid_firware = 0;
+        self->apps[index].magic = BL_FIRWARE_INFO_MAGIC_RRD;
+        self->apps[index].app_addr = g_app_addr_list[index];
+    }
 }
 
 static void bl_apps_manager_reset(bl_apps_manager_rrd *self){
@@ -102,7 +106,12 @@ static void bl_apps_manager_reset(bl_apps_manager_rrd *self){
 }
 
 static inline bool bl_apps_manager_have_firware(bl_apps_manager_rrd *self){
-    return self->apps[0].valid_firware || self->apps[1].valid_firware;
+    for(uint8_t index = 0;index < BL_APPLICATION_NUMBER; ++index){
+        if(self->apps[index].valid_firware){
+            return true;
+        }
+    }
+    return false;
 }
 
 static inline void bl_apps_manager_upgrade_success(bl_apps_manager_rrd *self, uint32_t finished_addr){
@@ -133,7 +142,7 @@ static inline void bl_apps_manager_clear_app_info(bl_apps_manager_rrd *self, uin
     self->apps[app_index].app_version = 0;
     self->apps[app_index].valid_firware = 0;
     self->apps[app_index].magic = BL_FIRWARE_INFO_MAGIC_RRD;
-    self->apps[app_index].app_addr = app_index == 0? BL_APPLICATION_ADDRESS_A : BL_APPLICATION_ADDRESS_B;
+    self->apps[app_index].app_addr = g_app_addr_list[app_index];
     g_bl_flash->interface->write_pre(g_bl_flash, BL_FRIWARE_INFO_ADDRESS);
     g_bl_flash->interface->write(g_bl_flash, BL_FRIWARE_INFO_ADDRESS, self, sizeof(BL_APPS_MANAGER_RRD));
 }

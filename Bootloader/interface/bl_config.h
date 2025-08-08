@@ -26,10 +26,11 @@
 //  END  0x0800A7FF 0x08013FFF  0x0801D7FF   0x0801FFFF  
 // SIZE     42K        44K        44K          10K       ---> 128 KB
 #define BL_FLASH_BASE_ADDRESS                   ((uint32_t)0x8000000)
-#define BL_APPLICATION_ADDRESS_A                ((uint32_t)0x0800A800)
-#define BL_APPLICATION_ADDRESS_B                ((uint32_t)0x08014000)
+#define BL_APPLICATION_ADDRESS_LIST             {                           \
+                                                    (uint32_t)0x0800A800,   \
+                                                    (uint32_t)0x08014000,   \
+                                                }
 #define BL_FRIWARE_INFO_ADDRESS                 ((uint32_t)0x0801D800)
-#define BL_APPLICATION_NUMBER                   (2)
 /** \}*/
 
 /** \addtogroup magic
