@@ -79,3 +79,23 @@
     }
     ```
 - 如果一个缓冲区被绑定到DMA传输，在读写这个缓冲区的时候，需要关闭中断和DMA传输，保证数据在此时不会被修改
+- malloc 字节对齐
+    ```c
+    inline void* aligned_malloc(size_t size, size_t alignment)
+    {
+        uintptr_t raw = (uintptr_t)malloc(size + alignment - 1 + sizeof(void*));
+        if (raw == 0) return NULL;
+        uintptr_t aligned = (raw + sizeof(void*) + alignment - 1) & ~(alignment - 1);
+        ((void**)aligned)[-1] = (void*)raw;
+
+        return (void*)aligned;
+    }
+
+    void aligned_free(void* aligned_ptr)
+    {
+        if (aligned_ptr) {
+            free(((void**)aligned_ptr)[-1]);
+        }
+    }
+
+    ```
