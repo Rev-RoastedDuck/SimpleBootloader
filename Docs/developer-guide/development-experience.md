@@ -43,6 +43,12 @@ DEBUG 模块功能丰富：
 
 #### bl_main.c
 ```c
+#ifdef BL_USE_CONSTRUCTOR_ATTRIBUTE_RRD
+    #define BL_CONSTRUCTOR_ATTRIBUTE __attribute__((constructor))
+#else
+    #define BL_CONSTRUCTOR_ATTRIBUTE
+#endif
+
 BL_CONSTRUCTOR_ATTRIBUTE
 void bootloader_pre_main(void) {
   if(BL_JUMP_APP_FLAG_MAGIC_RRD == bl_app_jump_flag){
@@ -315,7 +321,7 @@ static inline void bootloader_jump_to_app(void){
 
 ## 开发思路
 ### APP跳转
-1. 启动时检查 `bl_app_jump_flag`，有魔数标志则跳转APP
+1. 启动时检查 `bl_app_jump_flag`，有魔数标志则跳转APP，`bl_app_jump_flag`标志位存放在`NO_INIT`段
 2. 跳转APP流程：关闭中断、修改中断向量表、开启中断、设置堆栈指针、获取复位地址、通过复位转到APP
 3. 启动后，bootloader会计算已加载的固件的crc32校验码，然后在主循环中检测已注册到表中的设备缓冲区，通过比较缓冲区的数据和预设的魔数，执行相关的命令，包括下载固件、切换app、初始化bootloader。如果一定时间内没有收到指令或接收到下载固件的指令但下载固件超时，bootloader会自动退出，跳转到已加载的app中，没有下载任何app则一直等待。
 
@@ -325,6 +331,7 @@ static inline void bootloader_jump_to_app(void){
 - 设备基类均面向数据实现，与实际外设无关联
 
 ## 新东西
+### 1) XModem YModem
 - XModem
     - 数据包格式：SOH/STX、block_num、255-(block_num)、data(128/1K)、CRC-16/SUM
 
@@ -368,31 +375,71 @@ static inline void bootloader_jump_to_app(void){
     |                                       | ←    | ACK            |
     | SOH、0x00、0xFF、Data[128]={0}、CRC-16 | →    |                |
     |                                       | ←    | ACK            |
-- 在 BSS段/ZI段 后面新增一个 NO_INIT 段，可以防止 NO_INIT 段的数据在上电后清零
-- 使用复位可以百分百保证APP跳转成功，因为复位之后的环境是最干净的，不需要手动清理中断、DMA、定时器等，不同编译器和芯片都支持
+
+### 2) 段文件
 - 内存分区: 代码段、数据段、BSS段、堆、栈
-- gunc平台中，需要重写_write(...)来实现printf(...)重定向
-- 数组宏配置
-    ```
-    #define BL_APPLICATION_ADDRESS_LIST {                           \
-                                            (uint32_t)0x0800A800,   \
-                                            (uint32_t)0x08014000,   \
-                                        }
-    static const uint32_t g_app_addr_list[] = BL_APPLICATION_ADDRESS_LIST;
-    #define BL_APPLICATION_NUMBER  (sizeof((uint32_t[])BL_APPLICATION_ADDRESS_LIST) / sizeof(uint32_t))
-    ```
-- flash写入前，可以把数据拼接成8字节，然后按 字 写入，注意大小端
-    ```
-    for (size_t i = 0; i < length; i += 8) {
-        uint64_t data_word = 0xFFFFFFFF;
-        // 拼接8字节 小端
-        for (uint8_t j = 0; j < 8 && (i + j) < length; j++) {
-            ((uint8_t*)&data_word)[j] = buff[i + j];
+- 在 BSS段/ZI段 后面新增一个 NO_INIT 段，可以防止 NO_INIT 段的数据在上电后清零
+
+### 3) 
+使用复位可以百分百保证APP跳转成功，因为复位之后的环境是最干净的，不需要手动清理中断、DMA、定时器等，不同编译器和芯片都支持
+
+### 4) 多平台 printf(...)重定向
+```c
+#if defined(__GNUC__)
+    int _write(int file, char *ptr, int len) {
+        if(g_bl_debug_comm_dev != NULL){
+            if(!(bl_status != BL_STATUS_WAIT_FOR_CMD
+                && g_bl_debug_comm_dev == g_modem_comm_dev)){
+                g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev,(uint8_t *)ptr,len);
+            }
         }
+        return len;
     }
-    ```
-- 如果一个缓冲区被绑定到DMA传输，在读写这个缓冲区的时候，需要关闭中断和DMA传输，保证数据在此时不会被修改
-- malloc 字节对齐
+#elif defined(__ICCARM__)
+    size_t __write(int handle, const unsigned char *buf, size_t size) {
+        if (g_bl_debug_comm_dev != NULL) {
+            g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev, (uint8_t *)buf, size);
+            return size;
+        }
+        return 0;
+    }
+#elif defined(__CC_ARM)
+    int fputc(int ch, FILE *f){
+        if(g_bl_debug_comm_dev != NULL){
+            if(!(bl_status != BL_STATUS_WAIT_FOR_CMD
+                && g_bl_debug_comm_dev == g_modem_comm_dev)){
+                g_bl_debug_comm_dev->interface->write(g_bl_debug_comm_dev,(uint8_t *)(&ch),1);
+            }
+        }
+        return ch;
+    }
+#endif
+```
+### 5)数组宏配置
+```
+#define BL_APPLICATION_ADDRESS_LIST {                           \
+                                        (uint32_t)0x0800A800,   \
+                                        (uint32_t)0x08014000,   \
+                                    }
+static const uint32_t g_app_addr_list[] = BL_APPLICATION_ADDRESS_LIST;
+#define BL_APPLICATION_NUMBER  (sizeof((uint32_t[])BL_APPLICATION_ADDRESS_LIST) / sizeof(uint32_t))
+```
+
+### 6) 
+flash写入前，可以把数据拼接成8字节，然后按 字 写入，注意大小端
+```
+for (size_t i = 0; i < length; i += 8) {
+    uint64_t data_word = 0xFFFFFFFF;
+    // 拼接8字节 小端
+    for (uint8_t j = 0; j < 8 && (i + j) < length; j++) {
+        ((uint8_t*)&data_word)[j] = buff[i + j];
+    }
+}
+```
+### 7) DMA 与 CPU 对共享缓冲区的并发访问冲突
+如果一个缓冲区被绑定到DMA传输，在读写这个缓冲区的时候，需要关闭中断和DMA传输，保证数据在此时不会被修改
+
+### 8) malloc 字节对齐
     ```c
     inline void* aligned_malloc(size_t size, size_t alignment)
     {
@@ -412,3 +459,26 @@ static inline void bootloader_jump_to_app(void){
     }
 
     ```
+
+### 9) __attribute__((constructor)) 和 __attribute__((constructor))
+1. `__attribute__((constructor))`（别名`BL_CONSTRUCTOR_ATTRIBUTE`）和`__attribute__((destructor))`是GCC/Clang专属编译器扩展，分别实现**main函数执行前自动调用标记函数**、**main执行完毕/程序退出前自动调用标记函数**，本质是程序生命周期首尾的自动操作机制。
+2. 支持数字指定执行优先级（建议用户自定义从101开始，1-100留给系统）；constructor/destructor与C++全局对象构造/析构函数执行时机相近，但前者是显式标记函数，灵活性更高、支持优先级控制。
+3. 仅兼容GCC/Clang（MSVC需用`#pragma init_seg`等替代）；使用时需避免依赖未初始化的全局变量，禁止耗时/高风险操作（否则会导致程序启动/退出异常），典型场景为全局资源初始化、插件自动注册等。
+
+如果有多个 `constructor` 函数，可以指定优先级（数字越小，执行越早）：
+```c
+// 优先级101：先执行（用户自定义建议从101开始，1-100留给系统）
+__attribute__((constructor(101))) void init1() {
+    printf("优先级101，第一个执行\n");
+}
+
+// 优先级102：后执行
+__attribute__((constructor(102))) void init2() {
+    printf("优先级102，第二个执行\n");
+}
+
+// main 结束后执行
+__attribute__((destructor)) void after_main() {
+    printf("我在main函数执行完后调用～\n");
+}
+```
