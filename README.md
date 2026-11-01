@@ -84,6 +84,12 @@ git lfs pull --include="Example/stm32g431rbt6/**"
 使用**SimpleBootloader**之前，请阅读[帮助文档](./Docs/user-guide/SimpleBootolader_manual_cn.md)，你想知道的，都在这里~
 
 ## 待办事项
+- 提供升级流程图
+- 取消Modem协议强关联性
+- 取消重启等待升级，为Boot分区和APP分区提供升级响应接口
+- 为APP分区提供后台无感升级接口
+- 抽象固件包写入接口
+- 提供升级包打包脚本，支持差分升级
 - 提供图形化升级工具和上位机支持
 - 增强断点续传与升级失败自动恢复机制
 - 增加安全加密升级（如 AES、RSA 签名校验）功能
